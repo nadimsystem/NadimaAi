@@ -1,38 +1,44 @@
 
 import { GoogleGenAI, Modality } from "@google/genai";
 
-// Utility to convert File to Base64 and return a GenerativePart object
-const fileToGenerativePart = async (file: File) => {
-  const base64EncodedDataPromise = new Promise<string>((resolve) => {
+// Utility to convert File to Base64
+const fileToBase64 = (file: File): Promise<string> => {
+  return new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
-    reader.onloadend = () => {
+    reader.readAsDataURL(file);
+    reader.onload = () => {
       if (typeof reader.result === 'string') {
-        // remove the "data:image/jpeg;base64," part
         resolve(reader.result.split(',')[1]);
       } else {
-        resolve(''); // Should not happen with readAsDataURL
+        reject(new Error('Failed to convert file to base64'));
       }
     };
-    reader.readAsDataURL(file);
+    reader.onerror = (error) => reject(error);
   });
-  return {
-    inlineData: { data: await base64EncodedDataPromise, mimeType: file.type },
-  };
 };
 
-export const editImageWithGemini = async (imageFile: File, prompt: string): Promise<string> => {
+
+export const editImageWithGemini = async (imageFiles: File[], prompt: string): Promise<string> => {
   if (!process.env.API_KEY) {
     throw new Error("API_KEY environment variable not set");
   }
 
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-  const imagePart = await fileToGenerativePart(imageFile);
+  
+  const imageParts = await Promise.all(
+    imageFiles.map(async (file) => {
+      const data = await fileToBase64(file);
+      return {
+        inlineData: { data, mimeType: file.type },
+      };
+    })
+  );
 
   const response = await ai.models.generateContent({
     model: 'gemini-2.5-flash-image',
     contents: {
       parts: [
-        imagePart,
+        ...imageParts,
         { text: prompt },
       ],
     },
@@ -41,13 +47,22 @@ export const editImageWithGemini = async (imageFile: File, prompt: string): Prom
     },
   });
   
-  for (const part of response.candidates[0].content.parts) {
-    if (part.inlineData) {
-      const base64ImageBytes: string = part.inlineData.data;
-      const mimeType = part.inlineData.mimeType;
-      return `data:${mimeType};base64,${base64ImageBytes}`;
+  const candidate = response.candidates?.[0];
+
+  if (candidate?.content?.parts) {
+    for (const part of candidate.content.parts) {
+      if (part.inlineData) {
+        const base64ImageBytes: string = part.inlineData.data;
+        const mimeType = part.inlineData.mimeType;
+        return `data:${mimeType};base64,${base64ImageBytes}`;
+      }
     }
   }
 
-  throw new Error("No image was generated. Please try a different prompt.");
+  // If we reach here, no image was found or the response was blocked.
+  if (candidate?.finishReason === 'SAFETY') {
+      throw new Error("Gambar tidak dapat dibuat karena melanggar kebijakan keamanan. Coba prompt lain.");
+  }
+
+  throw new Error("Tidak ada gambar yang dihasilkan. Coba prompt yang berbeda.");
 };
