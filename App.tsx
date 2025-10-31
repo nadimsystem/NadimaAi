@@ -18,15 +18,15 @@ const dataUrlToFile = async (dataUrl: string, fileName: string): Promise<File> =
 
 // HEADER COMPONENT
 const Header: React.FC = () => (
-    <header className="text-center p-6 border-b border-gray-100">
+    <header className="text-center p-6 mt-[25px] border-b border-gray-100">
         <h1 className="text-3xl md:text-4xl font-bold text-gray-900 tracking-tight">
-            Nadima AI
+            Nadima Imagen
         </h1>
         <p className="mt-4 text-sm md:text-base text-gray-500 max-w-sm mx-auto">
             Edit foto sesuai imajinasi
         </p>
         <p className="mt-0 text-sm md:text-base text-gray-500 max-w-sm mx-auto">
-            tanpa mengubah wajah asli kamu.
+            tanpa kehilangan detail apapun.
         </p>
     </header>
 );
